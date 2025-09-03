@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useEchoModelProviders } from '@merit-systems/echo-react-sdk';
 import { editImages } from './imageHelpers';
 import { generateFaviconPack } from './faviconGenerator';
-import { Upload, Plus, Save, Pencil, Image } from 'lucide-react';
+import { Upload, Save, Pencil, Image } from 'lucide-react';
 
 interface UploadedImage {
     file: File;
@@ -51,20 +51,20 @@ export default function AIComponent() {
         });
     };
 
-    const handleDragOver = useCallback((e: React.DragEvent) => {
+    const handleDragOver = useCallback((e: DragEvent) => {
         e.preventDefault();
         setIsDragOver(true);
     }, []);
 
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
+    const handleDragLeave = useCallback((e: DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
+    const handleDrop = useCallback((e: DragEvent) => {
         e.preventDefault();
         setIsDragOver(false);
-        const files = e.dataTransfer.files;
+        const files = e.dataTransfer?.files;
         if (files && files.length > 0) {
             addImages(files);
         }
