@@ -381,7 +381,7 @@ export default function AIComponent() {
                             {isEditingImages ? 'Generating favicon...' : 'Generate Favicon'}
                         </button>
                         <div className="text-sm text-gray-500">
-                            Paste or drag images anywhere on the page
+                            Paste or drag reference images
                         </div>
                     </div>
                 </div>

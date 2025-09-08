@@ -64,10 +64,14 @@ export const generateFaviconPack = async (originalImageUrl: string): Promise<voi
     const appleTouchBlob = await fetch(appleTouch).then(r => r.blob());
     const faviconIcoBlob = await createIcoFromPng(favicon32);
     
+    // Get the original/raw image
+    const originalBlob = await fetch(originalImageUrl).then(r => r.blob());
+    
     zip.file('favicon-16x16.png', favicon16Blob);
     zip.file('favicon-32x32.png', favicon32Blob);
     zip.file('apple-touch-icon.png', appleTouchBlob);
     zip.file('favicon.ico', faviconIcoBlob);
+    zip.file('icon-original.png', originalBlob);
     
     // Generate site.webmanifest
     const manifest = {

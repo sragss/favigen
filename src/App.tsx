@@ -24,15 +24,22 @@ function App() {
 
     return (
         <div className="min-h-screen bg-white">
-            <header className="border-b border-black px-5 py-4">
+            <header className="border-b border-black px-5 py-2">
                 <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-lg">
-                            Favigen
-                        </h1>
-                        <p className="text-sm">
-                            Generate professional favicons with AI
-                        </p>
+                    <div className="flex items-center gap-3">
+                        <img 
+                            src="/icon.png" 
+                            alt="Favigen" 
+                            className="w-16 h-16"
+                        />
+                        <div>
+                            <h1 className="text-lg">
+                                Favigen
+                            </h1>
+                            <p className="text-sm">
+                                Generate professional favicons with AI
+                            </p>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-5">
