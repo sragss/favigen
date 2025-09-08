@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { useEchoModelProviders } from '@merit-systems/echo-react-sdk';
 import { editImages } from './imageHelpers';
 import { generateFaviconPack } from './faviconGenerator';
-import { Upload, Save, Pencil, Image } from 'lucide-react';
+import { removeBackground } from './backgroundRemoval';
+import { Upload, Save, Pencil, Image, Scissors } from 'lucide-react';
+import './checkerboard.css';
 
 interface UploadedImage {
     file: File;
@@ -21,8 +23,48 @@ export default function AIComponent() {
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [showLoadingBar, setShowLoadingBar] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [isRemovingBackground, setIsRemovingBackground] = useState(false);
+    const [transparentImages, setTransparentImages] = useState<Set<string>>(new Set());
+    // Map original URLs to processed URLs and track which version is currently shown
+    const [processedImages, setProcessedImages] = useState<Map<string, string>>(new Map());
+    const [showingProcessed, setShowingProcessed] = useState<Set<string>>(new Set());
+    // Track per-image processing state
+    const [processingImages, setProcessingImages] = useState<Set<string>>(new Set());
     
     const { google } = useEchoModelProviders();
+
+    const checkImageTransparency = useCallback((imageUrl: string): Promise<boolean> => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    resolve(false);
+                    return;
+                }
+                
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                
+                // Check if any pixel has alpha < 255 (transparent)
+                for (let i = 3; i < data.length; i += 4) {
+                    if (data[i] < 255) {
+                        resolve(true);
+                        return;
+                    }
+                }
+                resolve(false);
+            };
+            img.onerror = () => resolve(false);
+            img.src = imageUrl;
+        });
+    }, []);
 
     const addImages = useCallback((files: FileList | File[]) => {
         const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
@@ -117,6 +159,22 @@ export default function AIComponent() {
         };
     }, [modalImage]);
 
+    // Check transparency of edited images
+    useEffect(() => {
+        const checkTransparency = async () => {
+            for (const imageUrl of editedImages) {
+                const hasTransparency = await checkImageTransparency(imageUrl);
+                if (hasTransparency) {
+                    setTransparentImages(prev => new Set(prev).add(imageUrl));
+                }
+            }
+        };
+        
+        if (editedImages.length > 0) {
+            checkTransparency();
+        }
+    }, [editedImages, checkImageTransparency]);
+
     const handleImageEdit = async () => {
         // Allow generation without input images for favicon generation
         setIsEditingImages(true);
@@ -161,6 +219,52 @@ export default function AIComponent() {
             setErrorMessage(errorMsg);
         } finally {
             setIsEditingImages(false);
+        }
+    };
+
+    const handleBackgroundToggle = async (originalUrl: string) => {
+        const isCurrentlyProcessed = showingProcessed.has(originalUrl);
+        
+        if (isCurrentlyProcessed) {
+            // Toggle back to original
+            setShowingProcessed(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(originalUrl);
+                return newSet;
+            });
+            return;
+        }
+
+        // Check if we already have a processed version
+        const existingProcessed = processedImages.get(originalUrl);
+        if (existingProcessed) {
+            // Just toggle to show the processed version
+            setShowingProcessed(prev => new Set(prev).add(originalUrl));
+            return;
+        }
+
+        // Need to process the image first
+        setProcessingImages(prev => new Set(prev).add(originalUrl));
+        
+        try {
+            const processedImageUrl = await removeBackground(originalUrl);
+            
+            // Store the processed version
+            setProcessedImages(prev => new Map(prev).set(originalUrl, processedImageUrl));
+            
+            // Mark as transparent and showing processed
+            setTransparentImages(prev => new Set(prev).add(processedImageUrl));
+            setShowingProcessed(prev => new Set(prev).add(originalUrl));
+            
+        } catch (error) {
+            console.error('Background removal error:', error);
+            setErrorMessage('Failed to remove background. Please try again.');
+        } finally {
+            setProcessingImages(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(originalUrl);
+                return newSet;
+            });
         }
     };
 
@@ -340,20 +444,30 @@ export default function AIComponent() {
                         Generated Favicons ({editedImages.length})
                     </h3>
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-5 mb-5">
-                        {editedImages.map((imageUrl, index) => (
-                            <div key={index} className="text-center border border-black p-4">
-                                <img
-                                    src={imageUrl}
-                                    alt={`Generated favicon ${index + 1}`}
-                                    className="w-full h-auto max-h-96 object-contain mb-4 cursor-pointer"
-                                    onClick={() => setModalImage(imageUrl)}
-                                />
+                        {editedImages.map((originalUrl, index) => {
+                            const isShowingProcessed = showingProcessed.has(originalUrl);
+                            const processedUrl = processedImages.get(originalUrl);
+                            const currentImageUrl = isShowingProcessed && processedUrl ? processedUrl : originalUrl;
+                            const isProcessing = processingImages.has(originalUrl);
+                            
+                            return (
+                                <div key={index} className="text-center border border-black p-4">
+                                <div 
+                                    className={`favicon-preview mb-4 relative ${transparentImages.has(currentImageUrl) ? 'checkerboard-bg' : ''}`}
+                                >
+                                    <img
+                                        src={currentImageUrl}
+                                        alt={`Generated favicon ${index + 1}`}
+                                        className="w-full h-auto max-h-96 object-contain cursor-pointer"
+                                        onClick={() => setModalImage(currentImageUrl)}
+                                    />
+                                </div>
                                 
                                 {/* Browser tab preview */}
                                 <div className="mb-4 flex justify-center">
                                     <div className="bg-gray-200 rounded-t-lg px-3 py-1 flex items-center gap-2 text-xs border border-gray-300">
                                         <img
-                                            src={imageUrl}
+                                            src={currentImageUrl}
                                             alt="Favicon preview"
                                             className="w-8 h-8 object-contain"
                                         />
@@ -364,7 +478,7 @@ export default function AIComponent() {
                                 
                                 <div className="flex justify-center gap-2">
                                     <button
-                                        onClick={() => handleSaveFavicon(imageUrl)}
+                                        onClick={() => handleSaveFavicon(currentImageUrl)}
                                         className="flex items-center gap-1 px-3 py-2 border border-black bg-green-600 text-white cursor-pointer hover:bg-green-700"
                                         title="Download favicon pack"
                                     >
@@ -372,7 +486,36 @@ export default function AIComponent() {
                                         Save
                                     </button>
                                     <button
-                                        onClick={() => handleEditFavicon(imageUrl)}
+                                        onClick={() => handleBackgroundToggle(originalUrl)}
+                                        disabled={isProcessing}
+                                        className={`flex items-center gap-1 px-3 py-2 border border-black text-white cursor-pointer ${
+                                            isProcessing 
+                                                ? 'bg-gray-400 cursor-not-allowed' 
+                                                : isShowingProcessed 
+                                                    ? 'bg-gray-600 hover:bg-gray-700' 
+                                                    : 'bg-purple-600 hover:bg-purple-700'
+                                        }`}
+                                        title={isShowingProcessed ? "Show original image" : "Remove background from this image"}
+                                    >
+                                        {isProcessing ? (
+                                            <>
+                                                <Scissors size={16} />
+                                                Processing...
+                                            </>
+                                        ) : isShowingProcessed ? (
+                                            <>
+                                                <Image size={16} />
+                                                Original
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Scissors size={16} />
+                                                RM BG
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => handleEditFavicon(currentImageUrl)}
                                         className="flex items-center gap-1 px-3 py-2 border border-black bg-blue-600 text-white cursor-pointer hover:bg-blue-700"
                                         title="Edit this favicon"
                                     >
@@ -380,8 +523,9 @@ export default function AIComponent() {
                                         Edit
                                     </button>
                                 </div>
-                            </div>
-                        ))}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
