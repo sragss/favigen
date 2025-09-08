@@ -23,19 +23,18 @@ export default function AIComponent() {
     const [loadingProgress, setLoadingProgress] = useState(0);
     const [showLoadingBar, setShowLoadingBar] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [isRemovingBackground, setIsRemovingBackground] = useState(false);
-    const [transparentImages, setTransparentImages] = useState<Set<string>>(new Set());
+    const [transparentImages, setTransparentImages] = useState<Set<string>>(new Set<string>());
     // Map original URLs to processed URLs and track which version is currently shown
-    const [processedImages, setProcessedImages] = useState<Map<string, string>>(new Map());
-    const [showingProcessed, setShowingProcessed] = useState<Set<string>>(new Set());
+    const [processedImages, setProcessedImages] = useState<Map<string, string>>(new Map<string, string>());
+    const [showingProcessed, setShowingProcessed] = useState<Set<string>>(new Set<string>());
     // Track per-image processing state
-    const [processingImages, setProcessingImages] = useState<Set<string>>(new Set());
+    const [processingImages, setProcessingImages] = useState<Set<string>>(new Set<string>());
     
     const { google } = useEchoModelProviders();
 
     const checkImageTransparency = useCallback((imageUrl: string): Promise<boolean> => {
         return new Promise((resolve) => {
-            const img = new Image();
+            const img = document.createElement('img');
             img.crossOrigin = 'anonymous';
             img.onload = () => {
                 const canvas = document.createElement('canvas');
